@@ -85,9 +85,9 @@ options:
     required: false
   tvdb_ignore_failure:
     description:
-      - Determines whether or not to fail the module if the recording is
-        not found in the TVDB. This only applies if the recording is an
-        episode.
+      - >
+        Determines whether or not to fail the module if the recording is not
+        found in the TVDB. This only applies if the recording is an episode.
     required: false
     default: false
   skip_if_in_path:
