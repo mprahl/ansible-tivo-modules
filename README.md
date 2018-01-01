@@ -25,6 +25,9 @@ settings page.
 * **tvdb_ignore_failure**: Determines whether or not to fail the module if the
 recording is not found in the TVDB. This only applies if the recording is an
 episode.
+* **skip_if_in_path**: The path to check if a recording of the same name
+(without the file extension) exists before downloading the recording. If this
+is not set, the check will be bypassed.
 
 This module requires the following Python modules:
 * requests

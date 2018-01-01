@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this software. If not, see <http://www.gnu.org/licenses/>.
 
-from os import path
+from os import path, listdir
 import json
 import re
 import xml.etree.ElementTree as ET
@@ -90,6 +90,13 @@ options:
         episode.
     required: false
     default: false
+  skip_if_in_path:
+    description:
+      - >
+        The path to check if a recording of the same name (without the file
+        extension) exists before downloading the recording. If this is not set,
+        the check will be bypassed.
+    required: false
 requirements: ["requests"]
 '''
 
@@ -370,12 +377,14 @@ def get_tivo_recording_info(hostname, mak, title, episode=None):
     return recordings
 
 
-def download_tivo_recording(mak, recording_info, dest_dir):
+def download_tivo_recording(mak, recording_info, dest_dir, skip_path=None):
     """
     Downloads the recording from Tivo
     :param mak: a string of the Tivo's MAK/Media Access Key
     :param recording_info: a dictionary returned from get_tivo_recording_info
     :param dest_dir: a string of the folder to download the recording to
+    :param skip_path: a string of the folder to check if a recording of the
+    same name (without the extension) exists before downloading the recording
     :return: a boolean on if the episode was downloaded or skipped
     """
     season_num = recording_info.get('season_num')
@@ -389,6 +398,13 @@ def download_tivo_recording(mak, recording_info, dest_dir):
         file_name = '{0} - {1}.TiVo'.format(title, episode)
     else:
         file_name = '{0}.TiVo'.format(title)
+
+    if skip_path and path.isdir(skip_path):
+        for item in listdir(skip_path):
+            # If there is a file with the same base name, skip it
+            if path.isfile(path.join(path, item)) and \
+                    path.basename(item) == path.basename(file_name):
+                return False
 
     dest_file_path = path.join(dest_dir, file_name)
     if path.exists(dest_file_path):
@@ -426,7 +442,8 @@ def main():
             'tvdb_user_key': {'required': False, 'type': 'str'},
             'tvdb_username': {'required': False, 'type': 'str'},
             'tvdb_ignore_failure': {'required': False, 'type': 'bool',
-                                    'default': False}
+                                    'default': False},
+            'skip_if_in_path': {'required': False, 'type': 'str'}
         },
         supports_check_mode=False
     )
@@ -443,6 +460,7 @@ def main():
     tvdb_api_key = module.params['tvdb_api_key']
     tvdb_user_key = module.params['tvdb_user_key']
     tvdb_username = module.params['tvdb_username']
+    skip_path = module.params['skip_if_in_path']
     mak = module.params['mak']
     download_count = 0
 
@@ -459,7 +477,7 @@ def main():
                     {'season_num': season_num, 'episode_num': episode_num})
 
         if download_tivo_recording(mak, recording_info,
-                                   module.params['dest_dir']):
+                                   module.params['dest_dir'], skip_path):
             download_count += 1
 
     if download_count > 0:
