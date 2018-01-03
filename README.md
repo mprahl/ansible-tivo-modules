@@ -81,6 +81,6 @@ details.
 commercials. This defaults to `/opt/tivo/comskip`.
 * **comskip_ini**: The path to the comskip.ini file to use with comskip. If
 this is not set, commercials will not be cut.
-* **commercial_times**: A list of lists where each nested list contains a
-start and end time of a commercial in the format of hh:mm:dd. If this is
+* **commercial_times**: A list of strings where each string contains a start
+and end time of a commercial in the format of "hh:mm:dd-hh:mm:dd". If this is
 specified, it will be used instead of comskip.

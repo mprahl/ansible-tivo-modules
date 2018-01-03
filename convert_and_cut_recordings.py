@@ -89,9 +89,9 @@ options:
   commercial_times:
     description:
       - >
-        A list of lists where each nested list contains a start and end time
-        of a commercial in the format of hh:mm:dd. If this is specified, it
-        will be used instead of comskip.
+        A list of strings where each string contains a start and end time of a
+        commercial in the format of "hh:mm:dd-hh:mm:dd". If this is specified,
+        it will be used instead of comskip.
     required: false
 '''
 
@@ -105,12 +105,9 @@ EXAMPLES = '''
 - convert_recordings:
     source: /home/user/recording.mpg
     commercial_times:
-    - - '00:00:00'
-      - '00:01:23'
-    - - '00:09:50'
-      - '00:12:30'
-    - - '00:20:18'
-      - '00:21:25'
+    - '00:00:00-00:01:23'
+    - '00:09:50-00:12:30'
+    - '00:20:18-00:21:25'
 
 # Convert a single video with libx264 (H.264) and remove the source without
 # cutting commercials
@@ -349,20 +346,18 @@ def main():
     compression_speed = module.params['compression_speed']
     comskip_path = module.params['comskip_path']
     comskip_ini = module.params['comskip_ini']
-    commercial_times = module.params['commercial_times']
 
-    if commercial_times:
-        for times in commercial_times:
-            msg = ('The variable "commercial_times" must be a list of lists, '
-                   'with each nested list containing a start and end time in '
-                   'the format of "hh:mm:ss"')
-            if type(times) != list or len(times) != 2:
+    commercial_times = []
+    if module.params['commercial_times']:
+        for times in module.params['commercial_times']:
+            msg = ('The parameter "commercial_times" must be a list of '
+                   'strings, with each sting containing a start and end time '
+                   'in the format of "hh:mm:ss-hh:mm:ss"')
+            time_regex = r'^\d\d:\d\d:\d\d-\d\d:\d\d:\d\d$'
+            if type(times) != str or not re.match(time_regex, times):
                 module.fail_json(msg=msg)
-
-            for time in times:
-                time_regex = r'^\d\d:\d\d:\d\d$'
-                if type(time) != str or not re.match(time_regex, time):
-                    module.fail_json(msg=msg)
+            else:
+                commercial_times.append(times.split('-'))
 
     compression_speeds = ['ultrafast', 'superfast', 'veryfast', 'faster',
                           'fast', 'medium', 'slow', 'slower', 'veryslow']
