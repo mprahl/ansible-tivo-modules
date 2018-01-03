@@ -20,6 +20,7 @@ import os
 import subprocess as sp
 import shutil
 import tempfile
+import re
 
 from ansible.module_utils.basic import AnsibleModule
 
@@ -85,6 +86,13 @@ options:
     description:
       - The path to the comskip configuration file to use.
     required: false
+  commercial_times:
+    description:
+      - >
+        A list of lists where each nested list contains a start and end time
+        of a commercial in the format of hh:mm:dd. If this is specified, it
+        will be used instead of comskip.
+    required: false
 '''
 
 EXAMPLES = '''
@@ -92,6 +100,17 @@ EXAMPLES = '''
 - convert_recordings:
     source: /home/user/recording.mpg
     comskip_ini: /home/user/comskip.ini
+
+# Convert and cut commercials with manually entered commercial times
+- convert_recordings:
+    source: /home/user/recording.mpg
+    commercial_times:
+    - - '00:00:00'
+      - '00:01:23'
+    - - '00:09:50'
+      - '00:12:30'
+    - - '00:20:18'
+      - '00:21:25'
 
 # Convert a single video with libx264 (H.264) and remove the source without
 # cutting commercials
@@ -152,31 +171,52 @@ def comskip(source, output_dir, comskip_path, ini):
     return edl_file
 
 
-def get_segments(edl_file, padding=1.0):
+def get_segments(edl_file=None, commercial_times=None, padding=0.0):
     """
     Gets the segments to keep in the video file based on the values in the edl
-    file.
+    file or the list of commercial times.
     :param edl_file: a string of the path to the edl file that comskip
-    generated.
+    generated. This is required if "commercial_times" is not provided.
+    :param commercial_times: a list of lists where each nested list contains a
+    start and end time to drop in the format of hh:mm:dd. This is required if
+    "edl_file" isn't provided.
     :param padding: a float specifying how much to pad the segments in
-    seconds. This defaults to 1.0, which means an extra second in the segment
-    is captured.
+    seconds. This defaults to 0.0.
     :return: a list of tuples with a start and finish time in seconds of the
     video content to keep.
     """
+    if not edl_file and not commercial_times:
+        msg = ('The "get_segments" function requires the "edl_file" or '
+               '"commercial_times" parameter. Neither were provided.')
+        module.fail_json(msg=msg)
     padding = float(padding)
     segments = []
     prev_segment_end = 0.0
-    with open(edl_file, 'rb') as edl:
-        # EDL contains segments to drop, so chain those together into segments
-        # to keep
-        for segment in edl:
-            start, end, _ = segment.split()
-            start = float(start)
-            end = float(end)
+    if edl_file:
+        with open(edl_file, 'rb') as edl:
+            # EDL contains segments to drop, so chain those together into
+            # segments to keep
+            for segment in edl:
+                start, end, _ = segment.split()
+                start = float(start)
+                end = float(end)
+                if start != 0.0:
+                    segments.append((prev_segment_end, start + padding))
+                prev_segment_end = end
+    else:
+        for segment in commercial_times:
+            start = float(
+                (int(segment[0].split(':')[0]) * 60 * 60) +
+                (int(segment[0].split(':')[1]) * 60) +
+                int(segment[0].split(':')[2]))
+            end = float(
+                (int(segment[1].split(':')[0]) * 60 * 60) +
+                (int(segment[1].split(':')[1]) * 60) +
+                int(segment[1].split(':')[2]))
             if start != 0.0:
                 segments.append((prev_segment_end, start + padding))
             prev_segment_end = end
+
     # Write the final keep segment from the end of the last commercial break to
     # the end of the file
     keep_segment = (prev_segment_end, -1)
@@ -220,7 +260,7 @@ def get_trim_filter(segments):
 def video_to_mp4(temp_dir, source, destination=None, video_quality=28,
                  video_codec='libx265', audio_codec='aac', audio_quality=192,
                  compression_speed='medium', comskip_path='/opt/tivo/comskip',
-                 comskip_ini=None):
+                 comskip_ini=None, commercial_times=None):
     """
     Converts a video file to MP4 using ffmpeg.
     :param source: a string of the source file
@@ -240,6 +280,8 @@ def video_to_mp4(temp_dir, source, destination=None, video_quality=28,
     :param comskip_ini: a string of the path to the comskip ini file to use
     when cutting commercials. If this is not set, then commericial skipping
     will be skipped.
+    :param commercial_times: a list of lists where each nested list contains a
+    start and end time to drop in the format of hh:mm:dd.
     :return: a string of the path to the converted video file.
     """
     if destination:
@@ -253,9 +295,13 @@ def video_to_mp4(temp_dir, source, destination=None, video_quality=28,
                '{0}K'.format(audio_quality)]
 
     # If comskip_ini is specified, then cut the commercials
-    if comskip_ini:
-        edl_file = comskip(source, temp_dir, comskip_path, comskip_ini)
-        segments = get_segments(edl_file)
+    if commercial_times or comskip_ini:
+        # If both are provided, prefer the list of commercial times
+        if not commercial_times:
+            edl_file = comskip(source, temp_dir, comskip_path, comskip_ini)
+            segments = get_segments(edl_file=edl_file)
+        else:
+            segments = get_segments(commercial_times=commercial_times)
         trim_filter = get_trim_filter(segments)
         command += ['-filter_complex', trim_filter, '-map', '[outv]', '-map',
                     '[outa]']
@@ -288,7 +334,8 @@ def main():
             'compression_speed': {'default': 'medium', 'type': 'str'},
             'comskip_path': {'default': '/opt/tivo/comskip',
                              'type': 'str'},
-            'comskip_ini': {'required': False, 'type': 'str'}
+            'comskip_ini': {'required': False, 'type': 'str'},
+            'commercial_times': {'required': False, 'type': 'list'}
         },
         supports_check_mode=False
     )
@@ -302,6 +349,20 @@ def main():
     compression_speed = module.params['compression_speed']
     comskip_path = module.params['comskip_path']
     comskip_ini = module.params['comskip_ini']
+    commercial_times = module.params['commercial_times']
+
+    if commercial_times:
+        for times in commercial_times:
+            msg = ('The variable "commercial_times" must be a list of lists, '
+                   'with each nested list containing a start and end time in '
+                   'the format of "hh:mm:ss"')
+            if type(times) != list or len(times) != 2:
+                module.fail_json(msg=msg)
+
+            for time in times:
+                time_regex = r'^\d\d:\d\d:\d\d$'
+                if type(time) != str or not re.match(time_regex, time):
+                    module.fail_json(msg=msg)
 
     compression_speeds = ['ultrafast', 'superfast', 'veryfast', 'faster',
                           'fast', 'medium', 'slow', 'slower', 'veryslow']
@@ -337,7 +398,8 @@ def main():
                      video_codec=video_codec, audio_codec=audio_codec,
                      audio_quality=audio_quality,
                      compression_speed=compression_speed,
-                     comskip_path=comskip_path, comskip_ini=comskip_ini)
+                     comskip_path=comskip_path, comskip_ini=comskip_ini,
+                     commercial_times=commercial_times)
         if replace:
             os.remove(video)
     # Clean up the temp dir that was created for comskip files
