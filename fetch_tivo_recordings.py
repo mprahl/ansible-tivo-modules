@@ -400,11 +400,14 @@ def download_tivo_recording(mak, recording_info, dest_dir, skip_path=None):
         file_name = '{0}.TiVo'.format(title)
 
     if skip_path and path.isdir(skip_path):
+        file_name_no_ext = path.splitext(file_name)[0]
         for item in listdir(skip_path):
-            # If there is a file with the same base name, skip it
-            if path.isfile(path.join(path, item)) and \
-                    path.basename(item) == path.basename(file_name):
-                return False
+            # If there is a file with the same name (no ext), skip this
+            # recording
+            if path.isfile(path.join(skip_path, item)):
+                item_no_ext = path.splitext(item)[0]
+                if item_no_ext == file_name_no_ext:
+                    return False
 
     dest_file_path = path.join(dest_dir, file_name)
     if path.exists(dest_file_path):
