@@ -224,6 +224,7 @@ def get_segments(edl_file=None, commercial_times=None, padding=0.0):
 def get_trim_filter(segments):
     """
     Get the ffmpeg trim filter for removing the commercial segments
+    :param segments: a list of segments to keep in the video
     :return: a string of the ffmpeg trim filter to cut the video
     """
     trim = ''
