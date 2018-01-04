@@ -77,6 +77,8 @@ for more details.
 * **compression_speed**: The ffmpeg compression speed preset to use when
 converting the video. See the [ffmpeg documenation](https://trac.ffmpeg.org/wiki/Encode/H.265#ConstantRateFactorCRF) for more
 details.
+* **video_height**: The number of pixels to scale the video's height to. If
+this is not set, the video's resolution will not change.
 * **comskip_path**: The path to the comskip binary, which is used to cut
 commercials. This defaults to `/opt/tivo/comskip`.
 * **comskip_ini**: The path to the comskip.ini file to use with comskip. If

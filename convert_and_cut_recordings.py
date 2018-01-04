@@ -77,6 +77,10 @@ options:
       - The ffmpeg compression speed to use (balance between speed and size).
     required: false
     default: medium
+  video_height:
+    description:
+      - The number of pixels to scale the video's height to.
+    required: false
   comskip_path:
     description:
       - The path to the comskip binary.
@@ -257,8 +261,9 @@ def get_trim_filter(segments):
 
 def video_to_mp4(temp_dir, source, destination=None, video_quality=28,
                  video_codec='libx265', audio_codec='aac', audio_quality=192,
-                 compression_speed='medium', comskip_path='/opt/tivo/comskip',
-                 comskip_ini=None, commercial_times=None):
+                 compression_speed='medium', scale=None,
+                 comskip_path='/opt/tivo/comskip', comskip_ini=None,
+                 commercial_times=None):
     """
     Converts a video file to MP4 using ffmpeg.
     :param source: a string of the source file
@@ -274,6 +279,8 @@ def video_to_mp4(temp_dir, source, destination=None, video_quality=28,
     defaults to `aac`.
     :param compression_speed: a string of the ffmpeg compression speed to use.
     This defaults to `medium`.
+    :param scale: an int of the vertical pixels to scale to. If it's not set,
+    the video will not be resized.
     :param comskip_path: a string of the path to the comskip binary.
     :param comskip_ini: a string of the path to the comskip ini file to use
     when cutting commercials. If this is not set, then commericial skipping
@@ -301,8 +308,16 @@ def video_to_mp4(temp_dir, source, destination=None, video_quality=28,
         else:
             segments = get_segments(commercial_times=commercial_times)
         trim_filter = get_trim_filter(segments)
-        command += ['-filter_complex', trim_filter, '-map', '[outv]', '-map',
-                    '[outa]']
+        video_output = '[outv]'
+        # If the scale parameter was provided, we need to add it to the complex
+        # filter
+        if scale:
+            trim_filter += '; [outv]scale=-1:{0} [scal]'.format(scale)
+            video_output = '[scal]'
+        command += ['-filter_complex', trim_filter, '-map', video_output,
+                    '-map', '[outa]']
+    elif scale:
+        command += ['-fv', 'scale=-1:{0}'.format(scale)]
     command.append(destination_path)
     convert_proc = sp.Popen(command, stdout=sp.PIPE, stderr=sp.PIPE)
     stdout, stderr = convert_proc.communicate()
@@ -330,6 +345,7 @@ def main():
             'audio_codec': {'default': 'aac', 'type': 'str'},
             'audio_quality': {'default': 192, 'type': 'int'},
             'compression_speed': {'default': 'medium', 'type': 'str'},
+            'video_height': {'required': False, 'type': 'int'},
             'comskip_path': {'default': '/opt/tivo/comskip',
                              'type': 'str'},
             'comskip_ini': {'required': False, 'type': 'str'},
@@ -345,6 +361,7 @@ def main():
     audio_codec = module.params['audio_codec']
     audio_quality = module.params['audio_quality']
     compression_speed = module.params['compression_speed']
+    video_height = module.params['video_height']
     comskip_path = module.params['comskip_path']
     comskip_ini = module.params['comskip_ini']
 
@@ -393,7 +410,7 @@ def main():
         video_to_mp4(temp_dir, video, destination, video_quality=video_quality,
                      video_codec=video_codec, audio_codec=audio_codec,
                      audio_quality=audio_quality,
-                     compression_speed=compression_speed,
+                     compression_speed=compression_speed, scale=video_height,
                      comskip_path=comskip_path, comskip_ini=comskip_ini,
                      commercial_times=commercial_times)
         if replace:
