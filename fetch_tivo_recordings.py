@@ -276,7 +276,9 @@ def get_season_episode_num(api_key, user_key, username, series_name,
             return None, None
 
         for episode in rv_json['data']:
-            if episode['episodeName'].strip() == episode_name:
+            # Do a case insensitive check since some words can be capitalized
+            # differently on the TiVo and The TVDB
+            if episode['episodeName'].strip().lower() == episode_name.lower():
                 return episode['airedSeason'], episode['airedEpisodeNumber']
 
         if rv_json['links']['next']:
