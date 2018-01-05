@@ -172,7 +172,7 @@ def comskip(source, output_dir, comskip_path, ini):
     return edl_file
 
 
-def get_segments(edl_file=None, commercial_times=None, padding=0.0):
+def get_segments(edl_file=None, commercial_times=None):
     """
     Gets the segments to keep in the video file based on the values in the edl
     file or the list of commercial times.
@@ -181,8 +181,6 @@ def get_segments(edl_file=None, commercial_times=None, padding=0.0):
     :param commercial_times: a list of lists where each nested list contains a
     start and end time to drop in the format of hh:mm:dd. This is required if
     "edl_file" isn't provided.
-    :param padding: a float specifying how much to pad the segments in
-    seconds. This defaults to 0.0.
     :return: a list of tuples with a start and finish time in seconds of the
     video content to keep.
     """
@@ -190,7 +188,6 @@ def get_segments(edl_file=None, commercial_times=None, padding=0.0):
         msg = ('The "get_segments" function requires the "edl_file" or '
                '"commercial_times" parameter. Neither were provided.')
         module.fail_json(msg=msg)
-    padding = float(padding)
     segments = []
     prev_segment_end = 0.0
     if edl_file:
@@ -202,7 +199,7 @@ def get_segments(edl_file=None, commercial_times=None, padding=0.0):
                 start = float(start)
                 end = float(end)
                 if start != 0.0:
-                    segments.append((prev_segment_end, start + padding))
+                    segments.append((prev_segment_end, start))
                 prev_segment_end = end
     else:
         for segment in commercial_times:
@@ -215,7 +212,7 @@ def get_segments(edl_file=None, commercial_times=None, padding=0.0):
                 (int(segment[1].split(':')[1]) * 60) +
                 int(segment[1].split(':')[2]))
             if start != 0.0:
-                segments.append((prev_segment_end, start + padding))
+                segments.append((prev_segment_end, start))
             prev_segment_end = end
 
     # Write the final keep segment from the end of the last commercial break to
