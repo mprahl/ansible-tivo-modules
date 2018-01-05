@@ -94,8 +94,10 @@ options:
     description:
       - >
         A list of strings where each string contains a start and end time of a
-        commercial in the format of "hh:mm:dd-hh:mm:dd". If this is specified,
-        it will be used instead of comskip.
+        commercial in the format of "hh:mm:dd-hh:mm:dd". If the last commercial
+        goes until the end of the recording, then don't specify an end and just
+        put the start time of the commercial (e.g. "00:29:03"). If this is
+        specified, it will be used instead of comskip.
     required: false
 '''
 
@@ -207,18 +209,23 @@ def get_segments(edl_file=None, commercial_times=None):
                 (int(segment[0].split(':')[0]) * 60 * 60) +
                 (int(segment[0].split(':')[1]) * 60) +
                 int(segment[0].split(':')[2]))
-            end = float(
-                (int(segment[1].split(':')[0]) * 60 * 60) +
-                (int(segment[1].split(':')[1]) * 60) +
-                int(segment[1].split(':')[2]))
+            if segment[1] != -1:
+                end = float(
+                    (int(segment[1].split(':')[0]) * 60 * 60) +
+                    (int(segment[1].split(':')[1]) * 60) +
+                    int(segment[1].split(':')[2]))
+            else:
+                end = segment[1]
             if start != 0.0:
                 segments.append((prev_segment_end, start))
             prev_segment_end = end
 
     # Write the final keep segment from the end of the last commercial break to
-    # the end of the file
-    keep_segment = (prev_segment_end, -1)
-    segments.append(keep_segment)
+    # the end of the file if the last commercial doesn't go until the end of
+    # the file
+    if prev_segment_end != -1:
+        keep_segment = (prev_segment_end, -1)
+        segments.append(keep_segment)
     return segments
 
 
@@ -364,15 +371,27 @@ def main():
 
     commercial_times = []
     if module.params['commercial_times']:
-        for times in module.params['commercial_times']:
+        for i, times in enumerate(module.params['commercial_times']):
             msg = ('The parameter "commercial_times" must be a list of '
                    'strings, with each sting containing a start and end time '
-                   'in the format of "hh:mm:ss-hh:mm:ss"')
-            time_regex = r'^\d\d:\d\d:\d\d-\d\d:\d\d:\d\d$'
+                   'in the format of "hh:mm:ss-hh:mm:ss". The last segment '
+                   'may be in the format of "hh::mm:ss" if the last '
+                   'commercial goes until the end of the recording.')
+            # On the last segment, allow no end if the commercial goes to the
+            # end of the recording
+            if i == len(module.params['commercial_times']) - 1:
+                time_regex = r'^\d\d:\d\d:\d\d(?:-\d\d:\d\d:\d\d)?$'
+            else:
+                time_regex = r'^\d\d:\d\d:\d\d-\d\d:\d\d:\d\d$'
             if type(times) != str or not re.match(time_regex, times):
                 module.fail_json(msg=msg)
             else:
-                commercial_times.append(times.split('-'))
+                if '-' in times:
+                    commercial_times.append(times.split('-'))
+                else:
+                    # If the last commercial goes until the end of the
+                    # recording, signify that with "-1"
+                    commercial_times.append([times, -1])
 
     compression_speeds = ['ultrafast', 'superfast', 'veryfast', 'faster',
                           'fast', 'medium', 'slow', 'slower', 'veryslow']

@@ -84,5 +84,7 @@ commercials. This defaults to `/opt/tivo/comskip`.
 * **comskip_ini**: The path to the comskip.ini file to use with comskip. If
 this is not set, commercials will not be cut.
 * **commercial_times**: A list of strings where each string contains a start
-and end time of a commercial in the format of "hh:mm:dd-hh:mm:dd". If this is
+and end time of a commercial in the format of "hh:mm:dd-hh:mm:dd". If the last
+commercial goes until the end of the recording, then don't specify an end and
+just put the start time of the commercial (e.g. "00:29:03"). If this is
 specified, it will be used instead of comskip.
