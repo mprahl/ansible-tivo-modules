@@ -20,6 +20,7 @@ from os import path, listdir
 import json
 import re
 import xml.etree.ElementTree as ET
+from time import sleep
 
 import requests
 from requests.exceptions import ConnectionError, ConnectTimeout
@@ -484,6 +485,9 @@ def main():
         if download_tivo_recording(mak, recording_info,
                                    module.params['dest_dir'], skip_path):
             download_count += 1
+            if download_count < len(recordings_info):
+                # Sleep 30 seconds between downloads to give the TiVo a break
+                sleep(30)
 
     if download_count > 0:
         success_msg = '{0} recording(s) downloaded successfully'.format(
