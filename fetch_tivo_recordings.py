@@ -246,8 +246,8 @@ def get_season_episode_num(api_key, user_key, username, series_name,
     token = rv_json['token']
     headers['Authorization'] = 'Bearer {0}'.format(token)
 
-    error_msg = ('The request failed while getting the series "{0}" in The '
-                 'TVDB'.format(series_name))
+    error_msg = (u'The request failed while getting the series "{0}" in The '
+                 u'TVDB'.format(series_name))
     rv = requests_wrapper(
         series_query_api_url, headers=headers, error_msg=error_msg,
         fail_on_error=fail_on_error, timeout=30)
@@ -395,12 +395,12 @@ def download_tivo_recording(mak, recording_info, dest_dir, skip_path=None):
     title = recording_info['title']
     episode = recording_info.get('episode')
     if season_num and episode_num:
-        file_name = '{0} - S{1:0=2d}E{2:0=2d} - {3}.TiVo'.format(
+        file_name = u'{0} - S{1:0=2d}E{2:0=2d} - {3}.TiVo'.format(
             title, season_num, episode_num, episode)
     elif episode:
-        file_name = '{0} - {1}.TiVo'.format(title, episode)
+        file_name = u'{0} - {1}.TiVo'.format(title, episode)
     else:
-        file_name = '{0}.TiVo'.format(title)
+        file_name = u'{0}.TiVo'.format(title)
 
     if skip_path and path.isdir(skip_path):
         file_name_no_ext = path.splitext(file_name)[0]
@@ -416,10 +416,10 @@ def download_tivo_recording(mak, recording_info, dest_dir, skip_path=None):
     if path.exists(dest_file_path):
         return False
     if episode:
-        error_msg = ('Downloading the episode "{0}" from the series "{1}"'
-                     'failed.'.format(title, episode))
+        error_msg = (u'Downloading the episode "{0}" from the series "{1}"'
+                     u'failed.'.format(title, episode))
     else:
-        error_msg = 'Downloading "{0}" failed.'.format(title)
+        error_msg = u'Downloading "{0}" failed.'.format(title)
     tivo_recording_file = requests_wrapper(
         recording_info['link'], verify=False, error_msg=error_msg,
         auth=HTTPDigestAuth('tivo', mak), timeout=120, stream=True)
