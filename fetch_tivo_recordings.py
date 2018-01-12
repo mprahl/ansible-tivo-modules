@@ -21,6 +21,7 @@ import json
 import re
 import xml.etree.ElementTree as ET
 from time import sleep
+from difflib import SequenceMatcher
 
 import requests
 from requests.exceptions import ConnectionError, ConnectTimeout
@@ -210,7 +211,8 @@ def get_request_json(rv, error_msg, fail_on_error=True):
 
 
 def get_season_episode_num(api_key, user_key, username, series_name,
-                           episode_name, fail_on_error=True):
+                           episode_name, fail_on_error=True,
+                           fuzzy_match=False):
     """
     Queries The TVDB to get the season and episode numbers
     :param api_key: a string of The TVDB API key
@@ -218,8 +220,10 @@ def get_season_episode_num(api_key, user_key, username, series_name,
     :param username: a string of The TVDB username
     :param series_name: a string of The TVDB series
     :param episode_name: a string of The TVDB episode
-    :param fail_on_error: a boolean to determine if the module should fail if
+    :kwarg fail_on_error: a boolean to determine if the module should fail if
     the function can't determine the season and episode numbers
+    :kwarg fuzzy_match: a boolean to determine if there needs to be an exact
+    match between TiVo and the TVDB
     :return: a tuple of the season and episode number
     """
     api_url = 'https://api.thetvdb.com'
@@ -277,9 +281,18 @@ def get_season_episode_num(api_key, user_key, username, series_name,
             return None, None
 
         for episode in rv_json['data']:
-            # Do a case insensitive check since some words can be capitalized
-            # differently on the TiVo and The TVDB
-            if episode['episodeName'].strip().lower() == episode_name.lower():
+            tvdb_episode = episode['episodeName'].strip()
+            if fuzzy_match:
+                matcher = SequenceMatcher(None, episode_name, tvdb_episode)
+                # If the episode names are a 97% or more match, then assume
+                # that is the correct episode
+                is_match = matcher.ratio() >= 0.97
+            else:
+                # Do a case insensitive check since some words can be
+                # capitalized differently on the TiVo and The TVDB
+                is_match = tvdb_episode.lower() == episode_name.lower()
+
+            if is_match:
                 return episode['airedSeason'], episode['airedEpisodeNumber']
 
         if rv_json['links']['next']:
@@ -474,11 +487,27 @@ def main():
         title = recording_info.get('title')
         episode_name = recording_info.get('episode')
         if episode_name and tvdb_api_key and tvdb_user_key and tvdb_username:
-            season_num, episode_num = get_season_episode_num(
-                module.params['tvdb_api_key'], module.params['tvdb_user_key'],
-                module.params['tvdb_username'], title, episode_name,
-                (not module.params['tvdb_ignore_failure']))
-            if season_num and episode_num:
+            func_kwargs = {
+                'api_key': module.params['tvdb_api_key'],
+                'user_key': module.params['tvdb_user_key'],
+                'username': module.params['tvdb_username'],
+                'series_name': title,
+                'episode_name': episode_name,
+                # Don't fail the first time when doing an exact match
+                'fail_on_error': False,
+                'fuzzy_match': False
+            }
+            season_num, episode_num = get_season_episode_num(**func_kwargs)
+            # If there wasn't an exact match, then try a fuzzy match run
+            if not all([season_num, episode_name]):
+                # Now set the failure mode to the module parameters on the
+                # fuzzy match run
+                func_kwargs['fail_on_error'] = \
+                    (not module.params['tvdb_ignore_failure'])
+                func_kwargs['fuzzy_match'] = True
+                season_num, episode_num = get_season_episode_num(**func_kwargs)
+
+            if all([season_num, episode_name]):
                 recording_info.update(
                     {'season_num': season_num, 'episode_num': episode_num})
 
