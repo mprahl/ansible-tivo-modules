@@ -27,6 +27,7 @@ import requests
 from requests.exceptions import ConnectionError, ConnectTimeout
 from requests.auth import HTTPDigestAuth
 from six.moves.urllib_parse import urlencode
+from six import text_type
 from ansible.module_utils.basic import AnsibleModule
 
 ANSIBLE_METADATA = {
@@ -417,7 +418,7 @@ def download_tivo_recording(mak, recording_info, dest_dir, skip_path=None):
 
     if skip_path and path.isdir(skip_path):
         file_name_no_ext = path.splitext(file_name)[0]
-        for item in listdir(skip_path):
+        for item in listdir(text_type(skip_path)):
             # If there is a file with the same name (no ext), skip this
             # recording
             if path.isfile(path.join(skip_path, item)):
